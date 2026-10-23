@@ -1,0 +1,306 @@
+<Window x:Class="AudioMirror.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AudioMirror.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=False}"
+        Title="AudioMirror — WASAPI Multi-Endpoint Audio Duplicator"
+        Width="620" Height="860"
+        MinWidth="540" MinHeight="700"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="Segoe UI">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- 0: Header -->
+                <RowDefinition Height="Auto" /> <!-- 1: Source Device Card -->
+                <RowDefinition Height="Auto" /> <!-- 2: Target Device Card -->
+                <RowDefinition Height="Auto" /> <!-- 3: Cycle Selection Card -->
+                <RowDefinition Height="Auto" /> <!-- 4: Startup & Persistence Card -->
+                <RowDefinition Height="Auto" /> <!-- 5: Options Card (Volume sync & Tray) -->
+                <RowDefinition Height="Auto" /> <!-- 6: Latency Card -->
+                <RowDefinition Height="Auto" /> <!-- 7: VU Meter -->
+                <RowDefinition Height="Auto" /> <!-- 8: Status Bar -->
+                <RowDefinition Height="Auto" /> <!-- 9: Bottom Action Buttons -->
+            </Grid.RowDefinitions>
+
+            <!-- 0. Header -->
+            <Grid Grid.Row="0" Margin="0,0,0,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="AudioMirror" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock Text="Duplicador WASAPI con cambio por atajo de teclado, sincronización de volumen y arranque automático"
+                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0" />
+                </StackPanel>
+
+                <!-- Hotkey Pill Badge -->
+                <Border Grid.Column="1" Background="#262A36" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" 
+                        BorderThickness="1" Padding="10,6" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Atajo: " FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding HotKeyDisplay}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentHoverBrush}" 
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 1. Source Device Card -->
+            <Border Grid.Row="1" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Text="FUENTE PRINCIPAL (ORIGEN DE AUDIO)" FontSize="11" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource AccentBrush}" />
+                        <Button Content="↻ Refrescar" Command="{Binding RefreshDevicesCommand}"
+                                HorizontalAlignment="Right" Background="Transparent" BorderThickness="0"
+                                Foreground="{StaticResource AccentHoverBrush}" Cursor="Hand" FontSize="11"
+                                IsEnabled="{Binding CanChangeDevices}" />
+                    </Grid>
+
+                    <ComboBox Margin="0,8,0,4" Height="36"
+                              ItemsSource="{Binding Devices}"
+                              SelectedItem="{Binding SelectedSource}"
+                              IsEnabled="{Binding CanChangeDevices}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding FriendlyName}" FontWeight="Medium" />
+                                    <TextBlock Text=" [Predeterminado]" Foreground="#FFC107" FontWeight="Bold" Margin="4,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDefault}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Text="{Binding SelectedSource.FormatDescription, FallbackValue='Sin dispositivo seleccionado'}" 
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="2,0,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- 2. Target Device Card -->
+            <Border Grid.Row="2" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="DISPOSITIVO DUPLICADO (DESTINO SECUNDARIO)" FontSize="11" FontWeight="SemiBold" 
+                               Foreground="{StaticResource AccentBrush}" />
+
+                    <ComboBox Margin="0,8,0,4" Height="36"
+                              ItemsSource="{Binding Devices}"
+                              SelectedItem="{Binding SelectedTarget}"
+                              IsEnabled="{Binding CanChangeDevices}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding FriendlyName}" FontWeight="Medium" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Text="{Binding SelectedTarget.FormatDescription, FallbackValue='Sin dispositivo seleccionado'}" 
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="2,0,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- 3. Cycle Selection Card (Fuentes a alternar con atajo) -->
+            <Border Grid.Row="3" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="FUENTES A ALTERNAR CON EL ATAJO DE TECLADO (Ctrl + Alt + A)" FontSize="11" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Button Content="⤿ Alternar ahora" Command="{Binding CycleSourceCommand}"
+                                HorizontalAlignment="Right" Background="Transparent" BorderThickness="0"
+                                Foreground="{StaticResource AccentHoverBrush}" Cursor="Hand" FontSize="11" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Devices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsIncludedInCycle, Mode=TwoWay}" Margin="0,3" Foreground="{StaticResource TextPrimaryBrush}"
+                                          Cursor="Hand">
+                                    <TextBlock Text="{Binding FriendlyName}" FontSize="12" />
+                                </CheckBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- 4. Startup & Persistence Card (NUEVO) -->
+            <Border Grid.Row="4" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="CONFIGURACIÓN DE INICIO Y PERSISTENCIA" FontSize="11" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" />
+
+                    <!-- Iniciar con Windows -->
+                    <CheckBox IsChecked="{Binding StartWithWindows, Mode=TwoWay}" Margin="0,2,0,8" Cursor="Hand">
+                        <StackPanel>
+                            <TextBlock Text="Iniciar con Windows (Arranque automático)" FontWeight="SemiBold" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Registra la aplicación en el inicio de Windows bajo el flag --minimized." 
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!-- Auto-start Mirroring -->
+                    <CheckBox IsChecked="{Binding AutoStartMirroring, Mode=TwoWay}" Margin="0,2,0,8" Cursor="Hand">
+                        <StackPanel>
+                            <TextBlock Text="Iniciar duplicación automáticamente al arrancar" FontWeight="SemiBold" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Activa el puente de audio sin intervención del usuario tras detectar los dispositivos HDMI." 
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!-- Start Minimized -->
+                    <CheckBox IsChecked="{Binding StartMinimized, Mode=TwoWay}" Margin="0,2,0,0" Cursor="Hand">
+                        <StackPanel>
+                            <TextBlock Text="Iniciar minimizado en la bandeja del sistema" FontWeight="SemiBold" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Inicia la aplicación de forma desatendida en segundo plano sin mostrar la ventana." 
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- 5. Options Card (Volume Equalization & Tray) -->
+            <Border Grid.Row="5" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="NIVELACIÓN DE VOLUMEN Y BANDEJA" FontSize="11" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" />
+
+                    <!-- Volume Sync Checkbox -->
+                    <CheckBox IsChecked="{Binding SyncVolume, Mode=TwoWay}" Margin="0,2,0,8" Cursor="Hand">
+                        <StackPanel>
+                            <TextBlock Text="Sincronizar y nivelar volúmenes de Windows en tiempo real" FontWeight="SemiBold" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Iguala el volumen entre ambos dispositivos para evitar que te aturda al cambiar de fuente." 
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
+                    <!-- Minimize to Tray Checkbox -->
+                    <CheckBox IsChecked="{Binding MinimizeToTrayOnClose, Mode=TwoWay}" Margin="0,2,0,0" Cursor="Hand">
+                        <StackPanel>
+                            <TextBlock Text="Minimizar a la bandeja del sistema al cerrar [X]" FontWeight="SemiBold" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock Text="Mantiene el audio duplicado activo aunque cierres la ventana. Usa el atajo en cualquier momento." 
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- 6. Latency Card -->
+            <Border Grid.Row="6" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="BUFFER / LATENCIA DE DUPLICACIÓN" FontSize="11" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <TextBlock HorizontalAlignment="Right" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}">
+                            <Run Text="{Binding LatencyMs}" />
+                            <Run Text="ms (WASAPI Timer)" />
+                        </TextBlock>
+                    </Grid>
+
+                    <Slider Minimum="15" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding LatencyMs}" IsEnabled="{Binding CanChangeDevices}" />
+
+                    <TextBlock Text="{Binding FormatInfo}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" 
+                               TextTrimming="CharacterEllipsis" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- 7. Live Stereo VU Meter -->
+            <Border Grid.Row="7" Background="{StaticResource CardBrush}" CornerRadius="8" 
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="ACTIVIDAD DE AUDIO EN TIEMPO REAL" FontSize="11" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" />
+
+                    <!-- Left Channel -->
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="L" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Column="1" Height="8" Minimum="0" Maximum="100" Value="{Binding PeakLeft, Mode=OneWay}"
+                                     Background="{StaticResource MeterBgBrush}" Foreground="#00E676" BorderThickness="0" />
+                    </Grid>
+
+                    <!-- Right Channel -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="R" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Column="1" Height="8" Minimum="0" Maximum="100" Value="{Binding PeakRight, Mode=OneWay}"
+                                     Background="{StaticResource MeterBgBrush}" Foreground="#00E676" BorderThickness="0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- 8. Status Display -->
+            <Grid Grid.Row="8" Margin="0,0,0,12" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="{Binding StatusColor}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding StatusText}" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" 
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 9. Bottom Action Button -->
+            <Button Grid.Row="9" Height="46" Command="{Binding ToggleBridgeCommand}" Cursor="Hand"
+                    FontSize="14" FontWeight="SemiBold" BorderThickness="0">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource StopBrush}" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.9" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <TextBlock Text="{Binding ActionButtonText}" />
+            </Button>
+        </Grid>
+    </ScrollViewer>
+</Window>

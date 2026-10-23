@@ -1,0 +1,83 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace AudioMirror.Core;
+
+/// <summary>
+/// Gestiona la presencia de la aplicación en la bandeja del sistema (System Tray)
+/// para ejecución en segundo plano y notificaciones flotantes.
+/// </summary>
+public sealed class SystemTrayManager : IDisposable
+{
+    private readonly NotifyIcon _notifyIcon;
+    private readonly ToolStripMenuItem _statusMenuItem;
+    private readonly ToolStripMenuItem _toggleBridgeMenuItem;
+    private bool _disposed;
+
+    public event Action? OpenRequested;
+    public event Action? NextSourceRequested;
+    public event Action? ToggleBridgeRequested;
+    public event Action? ExitRequested;
+
+    public SystemTrayManager()
+    {
+        var contextMenu = new ContextMenuStrip();
+
+        var openItem = new ToolStripMenuItem("Abrir AudioMirror", null, (_, _) => OpenRequested?.Invoke());
+        openItem.Font = new Font(openItem.Font, System.Drawing.FontStyle.Bold);
+        contextMenu.Items.Add(openItem);
+
+        contextMenu.Items.Add(new ToolStripSeparator());
+
+        var nextItem = new ToolStripMenuItem("Siguiente fuente de audio (Ctrl+Alt+A)", null, (_, _) => NextSourceRequested?.Invoke());
+        contextMenu.Items.Add(nextItem);
+
+        _toggleBridgeMenuItem = new ToolStripMenuItem("Iniciar Duplicación", null, (_, _) => ToggleBridgeRequested?.Invoke());
+        contextMenu.Items.Add(_toggleBridgeMenuItem);
+
+        contextMenu.Items.Add(new ToolStripSeparator());
+
+        _statusMenuItem = new ToolStripMenuItem("Estado: Detenido") { Enabled = false };
+        contextMenu.Items.Add(_statusMenuItem);
+
+        contextMenu.Items.Add(new ToolStripSeparator());
+
+        var exitItem = new ToolStripMenuItem("Salir", null, (_, _) => ExitRequested?.Invoke());
+        contextMenu.Items.Add(exitItem);
+
+        _notifyIcon = new NotifyIcon
+        {
+            Icon = SystemIcons.Application,
+            Text = "AudioMirror — WASAPI Stream Cloner",
+            ContextMenuStrip = contextMenu,
+            Visible = true
+        };
+
+        _notifyIcon.DoubleClick += (_, _) => OpenRequested?.Invoke();
+    }
+
+    public void UpdateStatus(bool isRunning, string currentSource)
+    {
+        if (_disposed) return;
+
+        _toggleBridgeMenuItem.Text = isRunning ? "Detener Duplicación" : "Iniciar Duplicación";
+        _statusMenuItem.Text = isRunning ? $"Activo: {currentSource}" : "Estado: Detenido";
+        _notifyIcon.Text = isRunning ? $"AudioMirror ({currentSource})" : "AudioMirror (Detenido)";
+    }
+
+    public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info)
+    {
+        if (_disposed) return;
+        _notifyIcon.ShowBalloonTip(3000, title, message, icon);
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _disposed = true;
+        }
+    }
+}

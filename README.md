@@ -1,85 +1,46 @@
-# AudioMirror — Duplicador y Puente de Audio WASAPI en Tiempo Real
+# AudioMirror — Duplicador y Conmutador de Audio WASAPI en Tiempo Real
 
-**AudioMirror** es una aplicación de escritorio ligera desarrollada en **C# / .NET 8 (WPF)** diseñada para capturar la salida de audio de un dispositivo de reproducción principal (como una salida HDMI, auriculares o altavoces) y clonarla en tiempo real hacia un segundo dispositivo de salida (por ejemplo, una segunda pantalla HDMI, tarjeta de sonido USB, etc.).
-
----
-
-## 🎯 Arquitectura Técnica y Funcionamiento
-
-Windows no permite de forma nativa enviar la misma salida de audio a dos dispositivos físicos independientes sin usar cables virtuales de terceros (como VoiceMeeter). **AudioMirror** resuelve esto a nivel de kernel de audio de Windows mediante la **Windows Audio Session API (WASAPI)**:
-
-```
-[ Dispositivo Origen (Ej: HDMI 1) ] 
-       │
-       ▼ (WASAPI Loopback Capture - Shared Mode)
-[ AudioBridgeEngine ]
-       │
-       ├─► [ Buffer Circular Thread-Safe (BufferedWaveProvider) ]
-       │         │ (Control de drift y descarte de desbordamiento)
-       │         ▼
-       ├─► [ Resampleador Automático (MediaFoundationResampler) ] (Si SR/Canales difieren)
-       │         │
-       ▼         ▼
-[ Dispositivo Destino (Ej: HDMI 2) ] ◄── (WASAPI Render Client - Event-Driven Sync)
-```
-
-### Características Principales:
-1. **WASAPI Loopback Capture:** Captura directa del buffer de mezcla del dispositivo sin instalar drivers de kernel ni tarjetas de sonido virtuales.
-2. **Resampleo Automático en Tiempo Real:** Si el dispositivo origen emite a `48000 Hz, 24-bit` y el destino soporta `44100 Hz, 16-bit`, la API de Media Foundation adapta el flujo sobre la marcha con fidelidad audiófila y mínimo impacto en CPU.
-3. **Control Anti-Drift:** Dado que dos tarjetas de audio físicas tienen relojes de cuarzo ligeramente diferentes, el buffer circular está configurado con `DiscardOnBufferOverflow = true` y `ReadFully = true`, impidiendo que la latencia se acumule con el paso de las horas.
-4. **Baja Latencia Configurable:** Rango de 15 a 100 ms (25 ms recomendado para modo compartido de Windows).
-5. **Vúmetro Estéreo en Vivo:** Visualización de picos en tiempo real por canal (L/R) con decaimiento amortiguado a 60 FPS.
+**AudioMirror** es una aplicación de escritorio para Windows en **C# / .NET 8 (WPF)** diseñada para duplicar audio entre múltiples salidas simultáneas (como dos Smart TVs HDMI o altavoces y auriculares) con **baja latencia**, **atajo global de teclado**, **nivelación automática de volumen**, **persistencia total**, **arranque con Windows** y **ejecución desatendida en segundo plano**.
 
 ---
 
-## 📦 Paquetes NuGet Requeridos
+## 🚀 Funcionalidades Principales
 
-El proyecto utiliza únicamente el paquete estándar de audio:
-* [`NAudio`](https://www.nuget.org/packages/NAudio/) (versión `2.2.1` o superior, incluye sub-módulos `NAudio.Wasapi` y `NAudio.Core`).
+### 1. 💾 Persistencia Total de Configuración
+* Almacenada en `%AppData%/AudioMirror/config.json` con `System.Text.Json`.
+* Guarda automáticamente:
+  * Dispositivo de origen (`PrimaryDeviceId`) y duplicado (`SecondaryDeviceId`).
+  * Latencia de buffer elegida.
+  * **Casillas de verificación de rotación (`CycleDeviceIds`):** Los dispositivos marcados para rotar con el atajo de teclado se restauran fielmente al abrir la app.
+  * Opciones de inicio automático y nivelación de volumen.
+
+### 2. 🔌 Arranque Desatendido y Handshake HDMI / KVM
+* **Cold Boot Protection:** Al iniciar Windows, las pantallas HDMI y switches KVM tardan varios segundos en ser reconocidos por el sistema.
+* **Sondeo Inteligente:** AudioMirror realiza un sondeo asíncrono de hasta 45 segundos esperando a que los endpoints HDMI guardados estén en estado `DeviceState.Active`.
+* En cuanto se detectan, activa automáticamente la duplicación (`AutoStartMirroring`) sin intervención del usuario.
+
+### 3. 🖥️ Inicio Automático con Windows (`--minimized`)
+* Opción integrada para registrarse en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+* Inicia de forma desatendida en la bandeja del sistema (System Tray) sin estorbar en pantalla.
+
+### 4. ⌨️ Atajo Global de Teclado (`Ctrl + Alt + A`)
+* Conmuta la salida predeterminada de Windows entre las fuentes marcadas con `[✔]`.
+* **La configuración del puente de duplicación permanece fija e intacta.**
+
+### 5. 🔊 Nivelación y Sincronización de Volumen
+* **Protección anti-aturdimiento:** Iguala el volumen antes de cambiar de TV o a auriculares para que no aturda.
+* **Seguimiento dinámico:** Si subes, bajas o silencias el volumen desde el teclado de Windows, el dispositivo secundario copia el cambio al instante.
 
 ---
 
-## 🚀 Cómo Ejecutar y Probar
+## 📦 Ejecución y Pruebas
 
-### Requisitos previos:
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) para Windows.
+Abre tu terminal en la carpeta del proyecto:
 
-### Compilación y Ejecución desde la Terminal:
 ```powershell
-cd AudioMirror
-dotnet restore
-dotnet run -c Release
+cd C:\Users\fabri\Desktop\proyectos\AudioMirror
+dotnet run
 ```
 
-### O desde Visual Studio:
-1. Abrir la carpeta del proyecto en Visual Studio 2022.
-2. Presionar `F5` o seleccionar **Iniciar**.
-
----
-
-## 💻 Uso como Código de Consola / Background Worker
-
-Si deseas usar únicamente el motor de audio (`AudioBridgeEngine`) en una aplicación de consola o servicio en segundo plano (System Tray):
-
-```csharp
-using NAudio.CoreAudioApi;
-using AudioMirror.Core;
-
-using var deviceManager = new AudioDeviceManager();
-var devices = deviceManager.GetActiveRenderDevices();
-
-// 1. Seleccionar dispositivos
-var source = devices.First(d => d.IsDefault); // Salida HDMI principal
-var target = devices.First(d => !d.IsDefault); // Segunda salida HDMI
-
-// 2. Iniciar el puente con 25ms de latencia
-using var engine = new AudioBridgeEngine();
-engine.Start(source.Device, target.Device, latencyMilliseconds: 25);
-
-Console.WriteLine($"Duplicando audio desde '{source.FriendlyName}' hacia '{target.FriendlyName}'...");
-Console.WriteLine("Presiona cualquier tecla para detener...");
-Console.ReadKey();
-
-engine.Stop();
-```
-# AudioMirror
+O inicia directamente el binario compilado:
+`bin\Debug\net8.0-windows\AudioMirror.exe`
