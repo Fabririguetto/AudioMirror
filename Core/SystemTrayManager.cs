@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace AudioMirror.Core;
@@ -12,6 +13,7 @@ public sealed class SystemTrayManager : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _statusMenuItem;
     private readonly ToolStripMenuItem _toggleBridgeMenuItem;
+    private readonly Icon? _customIcon;
     private bool _disposed;
 
     public event Action? OpenRequested;
@@ -45,15 +47,47 @@ public sealed class SystemTrayManager : IDisposable
         var exitItem = new ToolStripMenuItem("Salir", null, (_, _) => ExitRequested?.Invoke());
         contextMenu.Items.Add(exitItem);
 
+        var (appIcon, customIcon) = LoadAppIcon();
+        _customIcon = customIcon;
+
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = appIcon,
             Text = "AudioMirror — WASAPI Stream Cloner",
             ContextMenuStrip = contextMenu,
             Visible = true
         };
 
         _notifyIcon.DoubleClick += (_, _) => OpenRequested?.Invoke();
+    }
+
+    private static (Icon icon, Icon? customToDispose) LoadAppIcon()
+    {
+        try
+        {
+            var assetsIcon = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (File.Exists(assetsIcon))
+            {
+                var custom = new Icon(assetsIcon);
+                return (custom, custom);
+            }
+
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+            {
+                var extracted = Icon.ExtractAssociatedIcon(exePath);
+                if (extracted != null)
+                {
+                    return (extracted, extracted);
+                }
+            }
+        }
+        catch
+        {
+            // Fallback en caso de error de acceso a archivos
+        }
+
+        return (SystemIcons.Application, null);
     }
 
     public void UpdateStatus(bool isRunning, string currentSource)
@@ -77,6 +111,7 @@ public sealed class SystemTrayManager : IDisposable
         {
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
+            _customIcon?.Dispose();
             _disposed = true;
         }
     }

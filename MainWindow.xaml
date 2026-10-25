@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=False}"
         Title="AudioMirror — WASAPI Multi-Endpoint Audio Duplicator"
+        Icon="Assets/app.ico"
         Width="620" Height="860"
         MinWidth="540" MinHeight="700"
         WindowStartupLocation="CenterScreen"
@@ -36,15 +37,26 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel>
-                    <TextBlock Text="AudioMirror" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                    <TextBlock Text="Duplicador WASAPI con cambio por atajo de teclado, sincronización de volumen y arranque automático"
-                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0" />
-                </StackPanel>
+                <Grid Grid.Column="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- App Brand Logo Icon -->
+                    <Image Grid.Column="0" Source="Assets/app_squircle.png" Width="48" Height="48" Margin="0,0,14,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="AudioMirror" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="Duplicador WASAPI con cambio por atajo de teclado, sincronización de volumen y arranque automático"
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
 
                 <!-- Hotkey Pill Badge -->
                 <Border Grid.Column="1" Background="#262A36" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" 
-                        BorderThickness="1" Padding="10,6" VerticalAlignment="Center">
+                        BorderThickness="1" Padding="10,6" VerticalAlignment="Center" Margin="10,0,0,0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Atajo: " FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding HotKeyDisplay}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentHoverBrush}" 
