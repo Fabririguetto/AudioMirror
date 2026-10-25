@@ -1,3 +1,7 @@
+using System.Text.Json.Serialization;
+using System.Windows.Input;
+using AudioMirror.Core;
+
 namespace AudioMirror.Models;
 
 /// <summary>
@@ -11,9 +15,19 @@ public sealed class AppSettings
     public string? PrimaryDeviceId { get; set; }
 
     /// <summary>
+    /// Nombre amigable de la fuente principal como respaldo si el ID cambia entre reinicios.
+    /// </summary>
+    public string? PrimaryDeviceName { get; set; }
+
+    /// <summary>
     /// ID del MMDevice seleccionado como destino duplicado.
     /// </summary>
     public string? SecondaryDeviceId { get; set; }
+
+    /// <summary>
+    /// Nombre amigable del destino como respaldo si el ID cambia entre reinicios.
+    /// </summary>
+    public string? SecondaryDeviceName { get; set; }
 
     /// <summary>
     /// Latencia configurada del buffer WASAPI en milisegundos.
@@ -21,9 +35,31 @@ public sealed class AppSettings
     public int TargetLatencyMs { get; set; } = 25;
 
     /// <summary>
-    /// Lista de IDs de los dispositivos marcados para rotación mediante el atajo global (Ctrl + Alt + A).
+    /// Modificadores de tecla configurados para el atajo global (ej. Ctrl + Alt).
+    /// </summary>
+    [JsonConverter(typeof(ModifierKeysJsonConverter))]
+    public ModifierKeys HotKeyModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Alt;
+
+    /// <summary>
+    /// Tecla configurada para el atajo global (ej. A).
+    /// </summary>
+    [JsonConverter(typeof(KeyJsonConverter))]
+    public Key HotKeyKey { get; set; } = Key.A;
+
+    /// <summary>
+    /// Indica si se debe mostrar una notificación flotante (OSD) en la pantalla al alternar salidas.
+    /// </summary>
+    public bool ShowOsdNotification { get; set; } = true;
+
+    /// <summary>
+    /// Lista de IDs de los dispositivos marcados para rotación mediante el atajo global.
     /// </summary>
     public List<string> CycleDeviceIds { get; set; } = new();
+
+    /// <summary>
+    /// Lista de nombres amigables de los dispositivos marcados para rotación como respaldo.
+    /// </summary>
+    public List<string> CycleDeviceNames { get; set; } = new();
 
     /// <summary>
     /// Indica si la duplicación de audio debe arrancar de forma desatendida al iniciar la aplicación.

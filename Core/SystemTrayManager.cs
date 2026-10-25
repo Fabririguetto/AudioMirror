@@ -13,6 +13,7 @@ public sealed class SystemTrayManager : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _statusMenuItem;
     private readonly ToolStripMenuItem _toggleBridgeMenuItem;
+    private readonly ToolStripMenuItem _nextSourceMenuItem;
     private readonly Icon? _customIcon;
     private bool _disposed;
 
@@ -31,8 +32,8 @@ public sealed class SystemTrayManager : IDisposable
 
         contextMenu.Items.Add(new ToolStripSeparator());
 
-        var nextItem = new ToolStripMenuItem("Siguiente fuente de audio (Ctrl+Alt+A)", null, (_, _) => NextSourceRequested?.Invoke());
-        contextMenu.Items.Add(nextItem);
+        _nextSourceMenuItem = new ToolStripMenuItem("Siguiente fuente de audio (Ctrl+Alt+A)", null, (_, _) => NextSourceRequested?.Invoke());
+        contextMenu.Items.Add(_nextSourceMenuItem);
 
         _toggleBridgeMenuItem = new ToolStripMenuItem("Iniciar Duplicación", null, (_, _) => ToggleBridgeRequested?.Invoke());
         contextMenu.Items.Add(_toggleBridgeMenuItem);
@@ -97,6 +98,12 @@ public sealed class SystemTrayManager : IDisposable
         _toggleBridgeMenuItem.Text = isRunning ? "Detener Duplicación" : "Iniciar Duplicación";
         _statusMenuItem.Text = isRunning ? $"Activo: {currentSource}" : "Estado: Detenido";
         _notifyIcon.Text = isRunning ? $"AudioMirror ({currentSource})" : "AudioMirror (Detenido)";
+    }
+
+    public void UpdateHotKeyText(string hotKeyDisplay)
+    {
+        if (_disposed) return;
+        _nextSourceMenuItem.Text = $"Siguiente fuente de audio ({hotKeyDisplay})";
     }
 
     public void ShowNotification(string title, string message, ToolTipIcon icon = ToolTipIcon.Info)

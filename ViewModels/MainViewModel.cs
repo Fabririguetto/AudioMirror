@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using AudioMirror.Core;
@@ -30,10 +31,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _statusText = "Iniciando detección...";
     private string _statusColor = "#9E9E9E";
     private string _formatInfo = "Esperando inicio...";
+    private string _hotKeyStatusMessage = "Atajo registrado correctamente en Windows";
+    private string _hotKeyStatusColor = "#4CAF50";
     private double _peakLeft;
     private double _peakRight;
 
     public ObservableCollection<AudioDeviceInfo> Devices { get; } = new();
+    public ObservableCollection<Key> AvailableKeys { get; } = new();
 
     public AudioDeviceInfo? SelectedSource
     {
@@ -46,6 +50,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 if (!_isHandshakeInProgress && value != null)
                 {
                     _settings.PrimaryDeviceId = value.Id;
+                    _settings.PrimaryDeviceName = value.FriendlyName;
                     _settingsService.Save(_settings);
                 }
             }
@@ -63,6 +68,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 if (!_isHandshakeInProgress && value != null)
                 {
                     _settings.SecondaryDeviceId = value.Id;
+                    _settings.SecondaryDeviceName = value.FriendlyName;
                     _settingsService.Save(_settings);
                 }
             }
@@ -171,7 +177,87 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanChangeDevices => !IsRunning && !_isHandshakeInProgress;
     public string ActionButtonText => IsRunning ? "Detener Duplicación" : "Iniciar Duplicación";
-    public string HotKeyDisplay => "Ctrl + Alt + A";
+
+    public ModifierKeys HotKeyModifiers
+    {
+        get => _settings.HotKeyModifiers;
+        set => UpdateHotKey(value, HotKeyKey);
+    }
+
+    public Key HotKeyKey
+    {
+        get => _settings.HotKeyKey;
+        set => UpdateHotKey(HotKeyModifiers, value);
+    }
+
+    public bool HotKeyCtrl
+    {
+        get => _settings.HotKeyModifiers.HasFlag(ModifierKeys.Control);
+        set => SetModifierFlag(ModifierKeys.Control, value);
+    }
+
+    public bool HotKeyAlt
+    {
+        get => _settings.HotKeyModifiers.HasFlag(ModifierKeys.Alt);
+        set => SetModifierFlag(ModifierKeys.Alt, value);
+    }
+
+    public bool HotKeyShift
+    {
+        get => _settings.HotKeyModifiers.HasFlag(ModifierKeys.Shift);
+        set => SetModifierFlag(ModifierKeys.Shift, value);
+    }
+
+    public bool HotKeyWin
+    {
+        get => _settings.HotKeyModifiers.HasFlag(ModifierKeys.Windows);
+        set => SetModifierFlag(ModifierKeys.Windows, value);
+    }
+
+    public string HotKeyDisplay => GlobalHotKeyManager.GetDisplayString(_settings.HotKeyModifiers, _settings.HotKeyKey);
+
+    private bool _isRecordingHotKey;
+    public bool IsRecordingHotKey
+    {
+        get => _isRecordingHotKey;
+        set
+        {
+            if (SetProperty(ref _isRecordingHotKey, value))
+            {
+                OnPropertyChanged(nameof(RecorderText));
+            }
+        }
+    }
+
+    public string RecorderText => IsRecordingHotKey
+        ? "⏳ Presiona la nueva combinación de teclas (o Esc para cancelar)..."
+        : $"⌨  {HotKeyDisplay}  (Haz clic aquí y presiona tus teclas)";
+
+    public string HotKeyStatusMessage
+    {
+        get => _hotKeyStatusMessage;
+        set => SetProperty(ref _hotKeyStatusMessage, value);
+    }
+
+    public string HotKeyStatusColor
+    {
+        get => _hotKeyStatusColor;
+        set => SetProperty(ref _hotKeyStatusColor, value);
+    }
+
+    public bool ShowOsdNotification
+    {
+        get => _settings.ShowOsdNotification;
+        set
+        {
+            if (_settings.ShowOsdNotification != value)
+            {
+                _settings.ShowOsdNotification = value;
+                OnPropertyChanged();
+                _settingsService.Save(_settings);
+            }
+        }
+    }
 
     public string StatusText
     {
@@ -206,19 +292,41 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public RelayCommand ToggleBridgeCommand { get; }
     public RelayCommand RefreshDevicesCommand { get; }
     public RelayCommand CycleSourceCommand { get; }
+    public RelayCommand TestOsdCommand { get; }
+    public RelayCommand ResetHotKeyCommand { get; }
 
     public MainViewModel(AppSettings? settings = null, SettingsService? settingsService = null)
     {
         _settingsService = settingsService ?? new SettingsService();
         _settings = settings ?? _settingsService.Load();
 
-        // Validar consistencia con el Registro de Windows al iniciar
-        bool isRegisteredInStartup = StartupManager.IsStartupEnabled();
-        if (_settings.StartWithWindows != isRegisteredInStartup)
+        // Si el usuario configuró iniciar con Windows, sincronizar el registro asegurando la ruta actual
+        if (_settings.StartWithWindows)
         {
-            _settings.StartWithWindows = isRegisteredInStartup;
-            _settingsService.Save(_settings);
+            StartupManager.SetStartup(true);
         }
+
+        // Población de teclas disponibles para el atajo
+        for (var k = Key.A; k <= Key.Z; k++) AvailableKeys.Add(k);
+        for (var k = Key.D0; k <= Key.D9; k++) AvailableKeys.Add(k);
+        for (var k = Key.F1; k <= Key.F12; k++) AvailableKeys.Add(k);
+        AvailableKeys.Add(Key.Space);
+        AvailableKeys.Add(Key.Tab);
+        AvailableKeys.Add(Key.Back);
+        AvailableKeys.Add(Key.Pause);
+        AvailableKeys.Add(Key.Insert);
+        AvailableKeys.Add(Key.Delete);
+        AvailableKeys.Add(Key.Home);
+        AvailableKeys.Add(Key.End);
+        AvailableKeys.Add(Key.PageUp);
+        AvailableKeys.Add(Key.PageDown);
+        AvailableKeys.Add(Key.MediaNextTrack);
+        AvailableKeys.Add(Key.MediaPreviousTrack);
+        AvailableKeys.Add(Key.MediaPlayPause);
+        AvailableKeys.Add(Key.MediaStop);
+        AvailableKeys.Add(Key.VolumeMute);
+        AvailableKeys.Add(Key.VolumeDown);
+        AvailableKeys.Add(Key.VolumeUp);
 
         _deviceManager = new AudioDeviceManager();
         _engine = new AudioBridgeEngine
@@ -233,6 +341,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ToggleBridgeCommand = new RelayCommand(ToggleBridge);
         RefreshDevicesCommand = new RelayCommand(() => RefreshDevices(forceDefaultSelection: false), () => CanChangeDevices);
         CycleSourceCommand = new RelayCommand(CycleNextSource);
+        TestOsdCommand = new RelayCommand(TestOsdNotification);
+        ResetHotKeyCommand = new RelayCommand(ResetHotKeyToDefault);
 
         _meterDecayTimer = new DispatcherTimer
         {
@@ -240,6 +350,96 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         };
         _meterDecayTimer.Tick += OnMeterDecayTick;
         _meterDecayTimer.Start();
+    }
+
+    public void StartHotKeyRecording()
+    {
+        IsRecordingHotKey = true;
+        HotKeyStatusMessage = "Presiona la combinación deseada en tu teclado...";
+        HotKeyStatusColor = "#0098FF";
+    }
+
+    public void CancelHotKeyRecording()
+    {
+        if (IsRecordingHotKey)
+        {
+            IsRecordingHotKey = false;
+            HotKeyStatusMessage = "Atajo conservado.";
+            HotKeyStatusColor = "#9E9E9E";
+        }
+    }
+
+    public void ApplyCapturedHotKey(ModifierKeys modifiers, Key key)
+    {
+        IsRecordingHotKey = false;
+        UpdateHotKey(modifiers, key);
+    }
+
+    public void ResetHotKeyToDefault()
+    {
+        IsRecordingHotKey = false;
+        UpdateHotKey(ModifierKeys.Control | ModifierKeys.Alt, Key.A);
+    }
+
+    private void SetModifierFlag(ModifierKeys flag, bool enabled)
+    {
+        var current = _settings.HotKeyModifiers;
+        if (enabled) current |= flag;
+        else current &= ~flag;
+
+        UpdateHotKey(current, _settings.HotKeyKey);
+    }
+
+    public void UpdateHotKey(ModifierKeys modifiers, Key key)
+    {
+        if (key == Key.None) return;
+
+        bool registered = true;
+        if (_hotKeyManager != null)
+        {
+            registered = _hotKeyManager.Register(modifiers, key);
+        }
+
+        if (registered)
+        {
+            _settings.HotKeyModifiers = modifiers;
+            _settings.HotKeyKey = key;
+            _settingsService.Save(_settings);
+
+            HotKeyStatusMessage = "Atajo registrado correctamente en Windows";
+            HotKeyStatusColor = "#4CAF50";
+        }
+        else
+        {
+            HotKeyStatusMessage = "No se pudo registrar (atajo ocupado por otra app o Windows)";
+            HotKeyStatusColor = "#F44336";
+        }
+
+        OnPropertyChanged(nameof(HotKeyModifiers));
+        OnPropertyChanged(nameof(HotKeyKey));
+        OnPropertyChanged(nameof(HotKeyCtrl));
+        OnPropertyChanged(nameof(HotKeyAlt));
+        OnPropertyChanged(nameof(HotKeyShift));
+        OnPropertyChanged(nameof(HotKeyWin));
+        OnPropertyChanged(nameof(HotKeyDisplay));
+        OnPropertyChanged(nameof(RecorderText));
+
+        _systemTrayManager?.UpdateHotKeyText(HotKeyDisplay);
+    }
+
+    private void TestOsdNotification()
+    {
+        var targetDevice = SelectedSource ?? Devices.FirstOrDefault(d => d.IsDefault) ?? Devices.FirstOrDefault();
+        if (targetDevice != null)
+        {
+            float vol = 1.0f;
+            try { vol = targetDevice.Device.AudioEndpointVolume.MasterVolumeLevelScalar; } catch { }
+            OsdNotificationManager.Show(targetDevice.FriendlyName, vol, SelectedTarget?.FriendlyName, IsRunning);
+        }
+        else
+        {
+            OsdNotificationManager.Show("Dispositivo de prueba", 0.75f, "Destino secundario", false);
+        }
     }
 
     /// <summary>
@@ -251,17 +451,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         try
         {
-            _hotKeyManager = new GlobalHotKeyManager(hwnd);
+            _hotKeyManager = new GlobalHotKeyManager(hwnd, _settings.HotKeyModifiers, _settings.HotKeyKey);
             _hotKeyManager.HotKeyPressed += OnHotKeyPressed;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[MainViewModel] Error registrando atajo global: {ex.Message}");
+            HotKeyStatusMessage = "Error registrando atajo global al iniciar";
+            HotKeyStatusColor = "#F44336";
         }
 
         try
         {
             _systemTrayManager = new SystemTrayManager();
+            _systemTrayManager.UpdateHotKeyText(HotKeyDisplay);
             _systemTrayManager.OpenRequested += RestoreWindow;
             _systemTrayManager.NextSourceRequested += CycleNextSource;
             _systemTrayManager.ToggleBridgeRequested += ToggleBridge;
@@ -301,17 +504,23 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             RefreshDevices(forceDefaultSelection: false);
 
-            bool hasPrimary = !string.IsNullOrEmpty(_settings.PrimaryDeviceId) &&
-                              Devices.Any(d => d.Id.Equals(_settings.PrimaryDeviceId, StringComparison.OrdinalIgnoreCase));
+            bool hasPrimary = Devices.Any(d =>
+                (!string.IsNullOrEmpty(_settings.PrimaryDeviceId) && d.Id.Equals(_settings.PrimaryDeviceId, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(_settings.PrimaryDeviceName) && d.FriendlyName.Equals(_settings.PrimaryDeviceName, StringComparison.OrdinalIgnoreCase)));
 
-            bool hasSecondary = !string.IsNullOrEmpty(_settings.SecondaryDeviceId) &&
-                                Devices.Any(d => d.Id.Equals(_settings.SecondaryDeviceId, StringComparison.OrdinalIgnoreCase));
+            bool hasSecondary = Devices.Any(d =>
+                (!string.IsNullOrEmpty(_settings.SecondaryDeviceId) && d.Id.Equals(_settings.SecondaryDeviceId, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(_settings.SecondaryDeviceName) && d.FriendlyName.Equals(_settings.SecondaryDeviceName, StringComparison.OrdinalIgnoreCase)));
 
             // Si ambos dispositivos configurados ya están presentes en Windows
             if (hasPrimary && hasSecondary)
             {
-                SelectedSource = Devices.FirstOrDefault(d => d.Id.Equals(_settings.PrimaryDeviceId, StringComparison.OrdinalIgnoreCase));
-                SelectedTarget = Devices.FirstOrDefault(d => d.Id.Equals(_settings.SecondaryDeviceId, StringComparison.OrdinalIgnoreCase));
+                SelectedSource = Devices.FirstOrDefault(d => d.Id.Equals(_settings.PrimaryDeviceId, StringComparison.OrdinalIgnoreCase))
+                              ?? Devices.FirstOrDefault(d => !string.IsNullOrEmpty(_settings.PrimaryDeviceName) && d.FriendlyName.Equals(_settings.PrimaryDeviceName, StringComparison.OrdinalIgnoreCase));
+
+                SelectedTarget = Devices.FirstOrDefault(d => d.Id.Equals(_settings.SecondaryDeviceId, StringComparison.OrdinalIgnoreCase))
+                              ?? Devices.FirstOrDefault(d => !string.IsNullOrEmpty(_settings.SecondaryDeviceName) && d.FriendlyName.Equals(_settings.SecondaryDeviceName, StringComparison.OrdinalIgnoreCase));
+
                 targetsResolved = true;
                 break;
             }
@@ -370,7 +579,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 _systemTrayManager?.ShowNotification(
                     "AudioMirror en segundo plano",
-                    "Listo en la bandeja del sistema. Usa Ctrl+Alt+A para conmutar salida.",
+                    $"Listo en la bandeja del sistema. Usa {HotKeyDisplay} para conmutar salida.",
                     System.Windows.Forms.ToolTipIcon.Info);
             }
         }
@@ -382,9 +591,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         var currentActive = _deviceManager.GetActiveRenderDevices();
 
-        // Preservar selecciones actuales si aún existen
+        // Preservar selecciones actuales si aún existen (con fallback a nombres)
         string? currentSourceId = SelectedSource?.Id ?? _settings.PrimaryDeviceId;
+        string? currentSourceName = SelectedSource?.FriendlyName ?? _settings.PrimaryDeviceName;
         string? currentTargetId = SelectedTarget?.Id ?? _settings.SecondaryDeviceId;
+        string? currentTargetName = SelectedTarget?.FriendlyName ?? _settings.SecondaryDeviceName;
 
         // Desuscribir eventos previos
         foreach (var dev in Devices)
@@ -395,25 +606,33 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         Devices.Clear();
         foreach (var dev in currentActive)
         {
-            // Restaurar estado de checkboxes de rotación según los IDs guardados
-            if (_settings.CycleDeviceIds != null && _settings.CycleDeviceIds.Count > 0)
+            // Restaurar estado de checkboxes de rotación según IDs o nombres guardados
+            bool isMarked = false;
+            if (_settings.CycleDeviceIds != null && _settings.CycleDeviceIds.Contains(dev.Id, StringComparer.OrdinalIgnoreCase))
             {
-                dev.IsIncludedInCycle = _settings.CycleDeviceIds.Contains(dev.Id, StringComparer.OrdinalIgnoreCase);
+                isMarked = true;
             }
+            else if (_settings.CycleDeviceNames != null && _settings.CycleDeviceNames.Contains(dev.FriendlyName, StringComparer.OrdinalIgnoreCase))
+            {
+                isMarked = true;
+            }
+            dev.IsIncludedInCycle = isMarked;
 
             dev.PropertyChanged += OnDevicePropertyChanged;
             Devices.Add(dev);
         }
 
-        // Restaurar selecciones
+        // Restaurar selecciones con fallback de ID a nombre
         if (!string.IsNullOrEmpty(currentSourceId))
         {
-            SelectedSource = Devices.FirstOrDefault(d => d.Id.Equals(currentSourceId, StringComparison.OrdinalIgnoreCase));
+            SelectedSource = Devices.FirstOrDefault(d => d.Id.Equals(currentSourceId, StringComparison.OrdinalIgnoreCase))
+                          ?? Devices.FirstOrDefault(d => !string.IsNullOrEmpty(currentSourceName) && d.FriendlyName.Equals(currentSourceName, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrEmpty(currentTargetId))
         {
-            SelectedTarget = Devices.FirstOrDefault(d => d.Id.Equals(currentTargetId, StringComparison.OrdinalIgnoreCase));
+            SelectedTarget = Devices.FirstOrDefault(d => d.Id.Equals(currentTargetId, StringComparison.OrdinalIgnoreCase))
+                          ?? Devices.FirstOrDefault(d => !string.IsNullOrEmpty(currentTargetName) && d.FriendlyName.Equals(currentTargetName, StringComparison.OrdinalIgnoreCase));
         }
 
         if (forceDefaultSelection || SelectedSource == null)
@@ -441,6 +660,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 .Select(d => d.Id)
                 .ToList();
 
+            _settings.CycleDeviceNames = Devices
+                .Where(d => d.IsIncludedInCycle)
+                .Select(d => d.FriendlyName)
+                .ToList();
+
             _settingsService.Save(_settings);
         }
     }
@@ -452,7 +676,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             _systemTrayManager?.ShowNotification(
                 "AudioMirror — Atajo de teclado",
-                "Por favor marca al menos 2 dispositivos en la lista para alternar la salida con el atajo.",
+                $"Por favor marca al menos 2 dispositivos en la lista para alternar con {HotKeyDisplay}.",
                 System.Windows.Forms.ToolTipIcon.Warning);
             return;
         }
@@ -487,10 +711,52 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             dev.IsDefault = dev.Id.Equals(nextOutput.Id, StringComparison.OrdinalIgnoreCase);
         }
 
+        // Actualizar la fuente principal seleccionada y persistir en settings
+        SelectedSource = nextOutput;
+        _settings.PrimaryDeviceId = nextOutput.Id;
+        _settings.PrimaryDeviceName = nextOutput.FriendlyName;
+
+        // Si el destino coincide con el nuevo origen, buscar un destino alternativo
+        if (SelectedTarget != null && SelectedTarget.Id.Equals(nextOutput.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            var alternateTarget = markedDevices.FirstOrDefault(d => !d.Id.Equals(nextOutput.Id, StringComparison.OrdinalIgnoreCase))
+                               ?? Devices.FirstOrDefault(d => !d.Id.Equals(nextOutput.Id, StringComparison.OrdinalIgnoreCase));
+            if (alternateTarget != null)
+            {
+                SelectedTarget = alternateTarget;
+                _settings.SecondaryDeviceId = alternateTarget.Id;
+                _settings.SecondaryDeviceName = alternateTarget.FriendlyName;
+            }
+        }
+
+        // Persistir la configuración inmediatamente tras el cambio por atajo
+        _settingsService.Save(_settings);
+
+        // Si la duplicación estaba corriendo, reanudarla con el nuevo origen
+        if (IsRunning && SelectedSource != null && SelectedTarget != null)
+        {
+            try
+            {
+                _engine.Start(SelectedSource.Device, SelectedTarget.Device, LatencyMs);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] Error reanudando puente tras alternar: {ex.Message}");
+            }
+        }
+
         float finalVol = nextOutput.Device.AudioEndpointVolume.MasterVolumeLevelScalar;
+
+        // 1. Mostrar notificación emergente en pantalla (OSD) sin robar foco
+        if (ShowOsdNotification)
+        {
+            OsdNotificationManager.Show(nextOutput.FriendlyName, finalVol, SelectedTarget?.FriendlyName, IsRunning);
+        }
+
+        // 2. Notificación en bandeja del sistema (Balloon Tip)
         _systemTrayManager?.ShowNotification(
             "Salida de audio cambiada",
-            $"Salida activa: {nextOutput.FriendlyName}\nVolumen nivelado al {finalVol:P0}",
+            $"Salida activa: {nextOutput.FriendlyName}\nVolumen: {finalVol:P0}",
             System.Windows.Forms.ToolTipIcon.Info);
 
         _systemTrayManager?.UpdateStatus(IsRunning, nextOutput.FriendlyName);
@@ -509,13 +775,20 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void HandleWindowClosing(CancelEventArgs e)
     {
+        if (App.IsSessionEnding)
+        {
+            // Windows está apagándose o reiniciándose: permitir el cierre sin bloquear
+            _settingsService.Save(_settings);
+            return;
+        }
+
         if (MinimizeToTrayOnClose)
         {
             e.Cancel = true;
             _window?.Hide();
             _systemTrayManager?.ShowNotification(
                 "AudioMirror en segundo plano",
-                "La aplicación sigue ejecutándose. Usa Ctrl+Alt+A para alternar la salida o haz doble clic para abrir.",
+                $"La aplicación sigue ejecutándose. Usa {HotKeyDisplay} para alternar la salida o haz doble clic para abrir.",
                 System.Windows.Forms.ToolTipIcon.Info);
         }
     }

@@ -30,6 +30,10 @@ public sealed class GlobalHotKeyManager : IDisposable
 
     public event Action? HotKeyPressed;
 
+    public ModifierKeys CurrentModifiers { get; private set; }
+    public Key CurrentKey { get; private set; }
+    public bool IsRegistered => _isRegistered;
+
     public GlobalHotKeyManager(IntPtr windowHandle, ModifierKeys modifiers = ModifierKeys.Control | ModifierKeys.Alt, Key key = Key.A)
     {
         _windowHandle = windowHandle;
@@ -45,6 +49,12 @@ public sealed class GlobalHotKeyManager : IDisposable
 
     public bool Register(ModifierKeys modifiers, Key key)
     {
+        if (key == Key.None)
+        {
+            Unregister();
+            return false;
+        }
+
         if (_isRegistered)
         {
             Unregister();
@@ -62,7 +72,27 @@ public sealed class GlobalHotKeyManager : IDisposable
         uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
 
         _isRegistered = RegisterHotKey(_windowHandle, _hotKeyId, fsModifiers, vk);
+        if (_isRegistered)
+        {
+            CurrentModifiers = modifiers;
+            CurrentKey = key;
+        }
+
         return _isRegistered;
+    }
+
+    public static string GetDisplayString(ModifierKeys modifiers, Key key)
+    {
+        if (key == Key.None) return "Ninguno";
+
+        var parts = new List<string>();
+        if (modifiers.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
+        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
+        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+        if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
+
+        parts.Add(key.ToString());
+        return string.Join(" + ", parts);
     }
 
     public void Unregister()
